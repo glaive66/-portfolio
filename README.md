@@ -27,12 +27,13 @@ flowchart TD
     Controller --> Agent["Spring AI Agent (Google Gemini 2.0 Flash / Multi-LLM)"]
     
     subgraph MCP Ecosystem
-        Agent <-->|MCP Protocol (Function Calling)| MCP_Registry["MCP Tool Registry"]
+        Agent -->|"MCP 프로토콜 (도구 호출)"| MCP_Registry["MCP Tool Registry"]
+        MCP_Registry -->|"도구 실행 결과 반환"| Agent
         MCP_Registry --> T1["Tool: 가맹점 정산 오류 조회 (READ)"]
         MCP_Registry --> T2["Tool: 맞춤 안내문 템플릿 생성 (READ)"]
-        MCP_Registry --> Gate{"Human-in-the-Loop Gateway<br/>(위험 작업 승인 대기)"}
-        Gate -->|SUSPEND: 승인 요청 카드| UI
-        UI -->|APPROVE: 관리자 승인 확인| Gate
+        MCP_Registry --> Gate{"Human-in-the-Loop Gateway<br/>위험 작업 승인 대기"}
+        Gate -->|"SUSPEND: 승인 요청 카드"| UI
+        UI -->|"APPROVE: 관리자 승인 확인"| Gate
         Gate --> Saga["Saga Orchestrator"]
         Saga --> T3["Tool: 전자결재 기안 자동 상신"]
         Saga --> T4["Tool: RabbitMQ 10건 단위 Chunk 분할 발행"]
