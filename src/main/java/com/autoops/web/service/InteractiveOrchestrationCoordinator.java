@@ -32,12 +32,22 @@ public class InteractiveOrchestrationCoordinator {
     private final SagaOrchestrator sagaOrchestrator;
     private final SseTimelineEmitterService sseService;
     private final AiAuditLogRepository auditLogRepository;
+    private final com.autoops.domain.task.OpsTaskHistoryRepository taskHistoryRepository;
 
     /**
      * 1단계: 사용자 자연어 지시 접수 및 자율 탐색 시작 (비동기)
      */
     public String startOpsTask(String userId, String userPrompt) {
         String executionId = "EXEC-" + UUID.randomUUID().toString().substring(0, 8);
+
+        // 작업 이력 등록 (RUNNING)
+        com.autoops.domain.task.OpsTaskHistory task = com.autoops.domain.task.OpsTaskHistory.builder()
+                .executionId(executionId)
+                .userId(userId)
+                .prompt(userPrompt)
+                .status("RUNNING")
+                .build();
+        taskHistoryRepository.save(task);
 
         CompletableFuture.runAsync(() -> processTaskPipeline(executionId, userId, userPrompt));
 
@@ -98,6 +108,12 @@ public class InteractiveOrchestrationCoordinator {
                     executionId, userId, "executeNoticePipeline", summary, queryResult
             );
 
+            // 작업 이력 상태 갱신 (SUSPENDED)
+            taskHistoryRepository.findByExecutionId(executionId).ifPresent(th -> {
+                th.updateSuspended(queryResult.totalErrorCount(), queryResult.totalPendingAmount());
+                taskHistoryRepository.save(th);
+            });
+
             sseService.sendEvent(executionId, "SUSPENDED", "⚠️ [HITL] 관리자 승인 대기 중 (작업 일시 중지)",
                     "부수 효과(Side-effect) 방지를 위해 관리자 검토 대기: " + summary + " [토큰: " + session.getPendingId() + "]", session);
 
@@ -141,6 +157,12 @@ public class InteractiveOrchestrationCoordinator {
         );
 
         if (sagaResult.isSuccess()) {
+            // 작업 이력 상태 갱신 (COMPLETED)
+            taskHistoryRepository.findByExecutionId(executionId).ifPresent(th -> {
+                th.completeSuccess(sagaResult.getDraftId(), sagaResult.getPublishedChunks(), approverId);
+                taskHistoryRepository.save(th);
+            });
+
             sseService.sendEvent(executionId, "COMPLETED", "🎉 AutoOps 전체 자율 오케스트레이션 성공 완료",
                     String.format("결재 기안(%s) 등록 및 RabbitMQ 총 %d개 청크 분할 발행 완료!",
                             sagaResult.getDraftId(), sagaResult.getPublishedChunks()), sagaResult);
@@ -158,6 +180,12 @@ public class InteractiveOrchestrationCoordinator {
     public void resumeWithReject(String pendingId, String approverId, String comment) {
         PendingExecutionSession session = approvalGateway.reject(pendingId, approverId, comment);
         String executionId = session.getExecutionId();
+
+        // 작업 이력 상태 갱신 (REJECTED)
+        taskHistoryRepository.findByExecutionId(executionId).ifPresent(th -> {
+            th.reject(approverId);
+            taskHistoryRepository.save(th);
+        });
 
         sseService.sendEvent(executionId, "REJECTED", "❌ 관리자 작업 거부 (작업 취소됨)",
                 "거부자: " + approverId + ", 반려 사유: " + comment, null);
