@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.autoops.domain.settlement.MerchantSettlementMapper">
+
+    <select id="selectSettlementSummary" parameterType="string" resultType="com.autoops.domain.settlement.SettlementSummaryDto">
+        SELECT
+            SETTLEMENT_YM AS settlementYm,
+            COUNT(*) AS totalCount,
+            COUNT(CASE WHEN STATUS = 'ERROR' THEN 1 END) AS errorCount,
+            COUNT(CASE WHEN STATUS = 'PENDING' THEN 1 END) AS pendingCount,
+            COALESCE(SUM(PENDING_AMOUNT), 0) AS totalPendingAmount
+        FROM TB_MERCHANT_SETTLEMENT
+        WHERE SETTLEMENT_YM = #{settlementYm}
+        GROUP BY SETTLEMENT_YM
+    </select>
+
+</mapper>

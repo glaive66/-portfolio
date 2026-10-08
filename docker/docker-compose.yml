@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: autoops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: autoops_db
+      POSTGRES_USER: autoops
+      POSTGRES_PASSWORD: autoops123!
+      TZ: Asia/Seoul
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - autoops-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autoops -d autoops_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: autoops-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"    # AMQP broker port
+      - "15672:15672"  # RabbitMQ Management Web Console
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - autoops-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+
+networks:
+  autoops-network:
+    driver: bridge
