@@ -34,6 +34,14 @@ public class InteractiveOrchestrationCoordinator {
     private final AiAuditLogRepository auditLogRepository;
     private final com.autoops.domain.task.OpsTaskHistoryRepository taskHistoryRepository;
 
+    public record QueryResultPayload(
+            String taskType, // "AGGREGATION", "QUERY", "MUTATION"
+            String settlementYm,
+            int count,
+            BigDecimal totalAmount,
+            List<SettlementQueryDto.Item> items
+    ) {}
+
     /**
      * 1단계: 사용자 자연어 지시 접수 및 자율 탐색 시작 (비동기)
      */
@@ -125,9 +133,11 @@ public class InteractiveOrchestrationCoordinator {
                 }
                 detailBuilder.append("\n※ 본 작업은 단순 집계/조회(READ) 업무이므로 부수 효과(Side-effect)가 없어 관리자 승인(HITL) 절차 없이 즉시 처리 완료되었습니다.");
 
+                QueryResultPayload payload = new QueryResultPayload("AGGREGATION", ym, targetItems.size(), totalSum, targetItems);
+
                 sseService.sendEvent(executionId, "COMPLETED",
                         String.format("📊 금액 합산 완료: 총 %,d 원 (최근 %d건)", totalSum.longValue(), targetItems.size()),
-                        detailBuilder.toString(), null);
+                        detailBuilder.toString(), payload);
 
                 taskHistoryRepository.findByExecutionId(executionId).ifPresent(th -> {
                     th.completeReadTask(targetItems.size(), totalSum);
@@ -142,7 +152,9 @@ public class InteractiveOrchestrationCoordinator {
                 String detail = String.format("정산 연월 %s 대상 오류 가맹점 %d건 조회가 완료되었습니다.\n총 보류 금액: %,d 원\n\n※ 단순 조회 업무이므로 부수 효과 없이 완료되었습니다.",
                         ym, targetItems.size(), totalSum.longValue());
 
-                sseService.sendEvent(executionId, "COMPLETED", "🔍 오류 가맹점 현황 조회 완료", detail, null);
+                QueryResultPayload payload = new QueryResultPayload("QUERY", ym, targetItems.size(), totalSum, targetItems);
+
+                sseService.sendEvent(executionId, "COMPLETED", "🔍 오류 가맹점 현황 조회 완료", detail, payload);
 
                 taskHistoryRepository.findByExecutionId(executionId).ifPresent(th -> {
                     th.completeReadTask(targetItems.size(), totalSum);
