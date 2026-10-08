@@ -58,32 +58,102 @@ public class InteractiveOrchestrationCoordinator {
         long startTime = System.currentTimeMillis();
 
         try {
+            String ym = parseSettlementYm(userPrompt);
+            int limit = parseLimit(userPrompt);
+            boolean isMutation = isMutationIntent(userPrompt);
+            boolean isSum = isAggregationIntent(userPrompt);
+
             // Step 1: AI 계획 수립 (Reasoning)
             sleep(400);
-            sseService.sendEvent(executionId, "THINKING", "AI 오케스트레이터 계획 수립",
-                    "자연어 분석: '" + userPrompt + "' -> 정산 오류 조회 도구(findSettlementErrors) 실행 결정", null);
+            if (isSum) {
+                sseService.sendEvent(executionId, "THINKING", "AI 오케스트레이터 계획 수립",
+                        String.format("자연어 의도 분석: '정산 오류 금액 집계(SUM)' 감지 -> 대상 연월: %s, 최근 건수: %d건. [단순 조회/집계(READ)로 부수 효과 없음]", ym, limit), null);
+            } else if (!isMutation) {
+                sseService.sendEvent(executionId, "THINKING", "AI 오케스트레이터 계획 수립",
+                        String.format("자연어 의도 분석: '정산 현황 단순 조회(QUERY)' 감지 -> 대상 연월: %s, 건수: %d건. [단순 조회(READ)로 부수 효과 없음]", ym, limit), null);
+            } else {
+                sseService.sendEvent(executionId, "THINKING", "AI 오케스트레이터 계획 수립",
+                        String.format("자연어 의도 분석: '정산 오류 일괄 조치 & 결재 상신(MUTATION)' 감지 -> 대량 발송/상신 전 관리자 승인(HITL) 필수", ym), null);
+            }
 
-            // Step 2: READ 도구 1 실행 (정산 오류 조회)
+            // Step 2: READ 도구 실행 (정산 오류 조회)
             sleep(600);
             sseService.sendEvent(executionId, "TOOL_START", "도구 실행: findSettlementErrors",
-                    "정산 연월: 202609 대상 가맹점 데이터 조회 시작...", null);
+                    String.format("정산 연월: %s 대상 가맹점 데이터 조회 시작 (최대 %d건)...", ym, limit), null);
 
             SettlementQueryDto.Response queryResult = settlementOpsTools.findSettlementErrors(
-                    new SettlementQueryDto.Request("202609", 50)
+                    new SettlementQueryDto.Request(ym, limit)
             );
 
-            sseService.sendEvent(executionId, "TOOL_END", "도구 완료: findSettlementErrors",
-                    String.format("오류 가맹점 %d건 발견, 총 보류금액: %,d 원",
-                            queryResult.totalErrorCount(), queryResult.totalPendingAmount().longValue()), null);
+            // 실제 limit 개수만큼 슬라이싱
+            List<SettlementQueryDto.Item> targetItems = queryResult.errorList().stream()
+                    .limit(limit)
+                    .toList();
 
-            if (queryResult.errorList().isEmpty()) {
-                sseService.sendEvent(executionId, "COMPLETED", "조회 완료", "해당 연월에 처리할 정산 오류가 없습니다.", null);
+            BigDecimal totalSum = targetItems.stream()
+                    .map(SettlementQueryDto.Item::pendingAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            sseService.sendEvent(executionId, "TOOL_END", "도구 완료: findSettlementErrors",
+                    String.format("조건에 부합하는 오류 가맹점 %d건 조회 완료 (합산 대상: %d건, 총 %,d 원)",
+                            queryResult.totalErrorCount(), targetItems.size(), totalSum.longValue()), null);
+
+            if (targetItems.isEmpty()) {
+                sseService.sendEvent(executionId, "COMPLETED", "조회 완료", "해당 조건에 처리할 정산 오류 데이터가 없습니다.", null);
+                taskHistoryRepository.findByExecutionId(executionId).ifPresent(th -> {
+                    th.completeReadTask(0, BigDecimal.ZERO);
+                    taskHistoryRepository.save(th);
+                });
                 return;
             }
 
-            // Step 3: READ 도구 2 실행 (맞춤 안내문 템플릿 실시간 생성)
+            // [분기 A] 금액 합산/집계(SUM) 의도인 경우 -> 즉시 결과 계산 및 완료 (승인 불필요!)
+            if (isSum) {
+                sleep(500);
+                StringBuilder detailBuilder = new StringBuilder();
+                detailBuilder.append(String.format("📌 [%s 정산오류 최근 %d건 금액 집계 결과]\n", ym, targetItems.size()));
+                detailBuilder.append(String.format("• 집계 대상: 총 %d개 가맹점\n", targetItems.size()));
+                detailBuilder.append(String.format("• 총 합계 금액: %,d 원\n\n", totalSum.longValue()));
+                detailBuilder.append("📋 [상세 가맹점 내역]\n");
+                for (int i = 0; i < Math.min(5, targetItems.size()); i++) {
+                    SettlementQueryDto.Item it = targetItems.get(i);
+                    detailBuilder.append(String.format("%d. %s : %,d원 (%s)\n",
+                            i + 1, it.merchantName(), it.pendingAmount().longValue(), it.failReason()));
+                }
+                if (targetItems.size() > 5) {
+                    detailBuilder.append(String.format("... 외 %d개 가맹점\n", targetItems.size() - 5));
+                }
+                detailBuilder.append("\n※ 본 작업은 단순 집계/조회(READ) 업무이므로 부수 효과(Side-effect)가 없어 관리자 승인(HITL) 절차 없이 즉시 처리 완료되었습니다.");
+
+                sseService.sendEvent(executionId, "COMPLETED",
+                        String.format("📊 금액 합산 완료: 총 %,d 원 (최근 %d건)", totalSum.longValue(), targetItems.size()),
+                        detailBuilder.toString(), null);
+
+                taskHistoryRepository.findByExecutionId(executionId).ifPresent(th -> {
+                    th.completeReadTask(targetItems.size(), totalSum);
+                    taskHistoryRepository.save(th);
+                });
+                return;
+            }
+
+            // [분기 B] 단순 조회(QUERY_ONLY) 의도인 경우 -> 즉시 완료 (승인 불필요!)
+            if (!isMutation) {
+                sleep(500);
+                String detail = String.format("정산 연월 %s 대상 오류 가맹점 %d건 조회가 완료되었습니다.\n총 보류 금액: %,d 원\n\n※ 단순 조회 업무이므로 부수 효과 없이 완료되었습니다.",
+                        ym, targetItems.size(), totalSum.longValue());
+
+                sseService.sendEvent(executionId, "COMPLETED", "🔍 오류 가맹점 현황 조회 완료", detail, null);
+
+                taskHistoryRepository.findByExecutionId(executionId).ifPresent(th -> {
+                    th.completeReadTask(targetItems.size(), totalSum);
+                    taskHistoryRepository.save(th);
+                });
+                return;
+            }
+
+            // [분기 C] 대량 조치 / 결재 상신(MUTATION) 의도인 경우 -> 안내문 생성 후 HITL 승인 게이트웨이 호출!
             sleep(500);
-            SettlementQueryDto.Item firstItem = queryResult.errorList().get(0);
+            SettlementQueryDto.Item firstItem = targetItems.get(0);
             sseService.sendEvent(executionId, "TOOL_START", "도구 실행: generateNoticeTemplate",
                     "대표 가맹점(" + firstItem.merchantName() + ") 기준 B2B 소명 요청 템플릿 생성 중...", null);
 
@@ -102,15 +172,19 @@ public class InteractiveOrchestrationCoordinator {
             // Step 4: Human-in-the-Loop 승인 게이트웨이 진입 (MUTATION 위험 작업 전 일시 중지)
             sleep(500);
             String summary = String.format("정산 오류 가맹점 %d곳 대상 대량 알림 발송 및 결재 상신 (총 %,d 원)",
-                    queryResult.totalErrorCount(), queryResult.totalPendingAmount().longValue());
+                    targetItems.size(), totalSum.longValue());
+
+            SettlementQueryDto.Response scopedResponse = new SettlementQueryDto.Response(
+                    ym, targetItems.size(), totalSum, targetItems
+            );
 
             PendingExecutionSession session = approvalGateway.suspend(
-                    executionId, userId, "executeNoticePipeline", summary, queryResult
+                    executionId, userId, "executeNoticePipeline", summary, scopedResponse
             );
 
             // 작업 이력 상태 갱신 (SUSPENDED)
             taskHistoryRepository.findByExecutionId(executionId).ifPresent(th -> {
-                th.updateSuspended(queryResult.totalErrorCount(), queryResult.totalPendingAmount());
+                th.updateSuspended(targetItems.size(), totalSum);
                 taskHistoryRepository.save(th);
             });
 
@@ -121,6 +195,46 @@ public class InteractiveOrchestrationCoordinator {
             log.error("[Coordinator] 파이프라인 에러 - {}", e.getMessage(), e);
             sseService.sendEvent(executionId, "ERROR", "오케스트레이션 실행 오류", e.getMessage(), null);
         }
+    }
+
+    private String parseSettlementYm(String prompt) {
+        if (prompt == null) return "202609";
+        java.util.regex.Matcher m1 = java.util.regex.Pattern.compile("(20\\d{2})(0[1-9]|1[0-2])").matcher(prompt);
+        if (m1.find()) return m1.group();
+
+        java.util.regex.Matcher m2 = java.util.regex.Pattern.compile("([1-9]|1[0-2])월").matcher(prompt);
+        if (m2.find()) {
+            int month = Integer.parseInt(m2.group(1));
+            return String.format("2026%02d", month);
+        }
+        return "202609";
+    }
+
+    private int parseLimit(String prompt) {
+        if (prompt == null) return 50;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:최근|상위)?\\s*(\\d+)\\s*(?:건|개|곳)").matcher(prompt);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (Exception ignored) {}
+        }
+        return 50;
+    }
+
+    private boolean isMutationIntent(String prompt) {
+        if (prompt == null) return false;
+        String lower = prompt.toLowerCase();
+        return lower.contains("결재") || lower.contains("상신") || lower.contains("기안")
+                || lower.contains("발송") || lower.contains("보내") || lower.contains("전송")
+                || lower.contains("통보") || lower.contains("조치") || lower.contains("소명 안내문 작성");
+    }
+
+    private boolean isAggregationIntent(String prompt) {
+        if (prompt == null) return false;
+        String lower = prompt.toLowerCase();
+        return lower.contains("합") || lower.contains("더해") || lower.contains("합계")
+                || lower.contains("총액") || lower.contains("총 금액") || lower.contains("총합")
+                || lower.contains("얼마") || lower.contains("계산");
     }
 
     /**

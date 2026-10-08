@@ -76,6 +76,13 @@ public class OpsTaskHistory {
         this.completedAt = LocalDateTime.now();
     }
 
+    public void completeReadTask(int merchantCount, BigDecimal totalAmount) {
+        this.status = "COMPLETED";
+        this.targetMerchantCount = merchantCount;
+        this.totalPendingAmount = totalAmount;
+        this.completedAt = LocalDateTime.now();
+    }
+
     public void reject(String approverId) {
         this.status = "REJECTED";
         this.approverId = approverId;
