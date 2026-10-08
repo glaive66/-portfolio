@@ -1,6 +1,18 @@
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
 
 ### IntelliJ IDEA ###
 .idea
@@ -8,11 +20,23 @@ build/
 *.iml
 *.ipr
 out/
+modules.xml
+.idea_modules/
+
+### JRebel ###
+rebel.xml
+
+### NetBeans ###
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
 
 ### VS Code ###
 .vscode/
 
-### OS files ###
+### Mac & Windows ###
 .DS_Store
 Thumbs.db
-*.log
