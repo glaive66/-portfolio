@@ -1,18 +1,18 @@
-# Gradle
-.gradle/
+.gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
 
-# IDE
-.idea/
-*.iml
-.vscode/
-*.ipr
+### IntelliJ IDEA ###
+.idea
 *.iws
+*.iml
+*.ipr
+out/
 
-# OS
+### VS Code ###
+.vscode/
+
+### OS files ###
 .DS_Store
 Thumbs.db
-
-# Logs
 *.log
