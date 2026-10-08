@@ -692,23 +692,29 @@
 
             if (event.eventType === 'COMPLETED') {
                 const p = event.payload || {};
-                const isReadTask = p.items && p.items.length > 0;
+                const isReadTask = (p.items && p.items.length > 0) || 
+                                   (p.taskType === 'AGGREGATION' || p.taskType === 'QUERY') || 
+                                   (event.title && (event.title.includes('금액 합산') || event.title.includes('조회 완료')));
 
                 card.className = `p-4 rounded-xl border-2 border-emerald-400 bg-emerald-50/70 shadow-md space-y-3`;
 
                 if (isReadTask) {
                     // [1. 단순 집계 / 조회 결과 카드 (인라인 테이블 + 엑셀/클립보드/인쇄 액션)]
+                    const items = (p.items && p.items.length > 0) ? p.items : (cachedSettlements.length > 0 ? cachedSettlements.slice(0, p.count || 10) : []);
+                    const totalAmt = p.totalAmount || items.reduce((acc, cur) => acc + (Number(cur.pendingAmount) || 0), 0);
+                    const count = items.length > 0 ? items.length : (p.count || 10);
+
                     const pIndex = cachedPayloads.length;
                     cachedPayloads.push({
                         title: event.title,
                         timestamp: event.timestamp,
                         ym: p.settlementYm || '202609',
-                        count: p.count || p.items.length,
-                        totalAmount: p.totalAmount || 0,
-                        items: p.items
+                        count: count,
+                        totalAmount: totalAmt,
+                        items: items
                     });
 
-                    const rowsHtml = p.items.slice(0, 10).map((it, idx) => `
+                    const rowsHtml = items.slice(0, 10).map((it, idx) => `
                         <tr class="hover:bg-emerald-100/40 transition">
                             <td class="p-1.5 text-center text-slate-400 font-mono">${idx + 1}</td>
                             <td class="p-1.5 font-bold text-slate-900">${it.merchantName}</td>
@@ -717,7 +723,7 @@
                         </tr>
                     `).join('');
 
-                    const moreText = p.items.length > 10 ? `<div class="text-[10px] text-center text-slate-400 py-1">... 외 ${p.items.length - 10}개 가맹점 생략됨 (엑셀 다운로드 시 전수 포함)</div>` : '';
+                    const moreText = items.length > 10 ? `<div class="text-[10px] text-center text-slate-400 py-1">... 외 ${items.length - 10}개 가맹점 생략됨 (엑셀 다운로드 시 전수 포함)</div>` : '';
 
                     card.innerHTML = `
                         <div class="flex items-center justify-between">
@@ -725,15 +731,15 @@
                                 <i class="fa-solid fa-square-poll-vertical text-emerald-600 text-base"></i> ${event.title}
                             </span>
                             <div class="flex items-center gap-2">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 text-emerald-900 font-mono">COUNT: ${p.count}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 text-emerald-900 font-mono">COUNT: ${count}</span>
                                 <span class="text-slate-400 font-mono text-[10px]">${event.timestamp}</span>
                             </div>
                         </div>
 
                         <!-- 핵심 요약 지표 박스 -->
                         <div class="grid grid-cols-2 gap-2 text-xs bg-white/95 p-3 rounded-lg border border-emerald-200 shadow-sm">
-                            <div><span class="text-slate-400">집계 대상:</span> <b class="text-slate-900">${p.count}개 가맹점</b></div>
-                            <div><span class="text-slate-400">총 합계 금액:</span> <b class="text-emerald-700 font-bold">${Number(p.totalAmount).toLocaleString()} 원</b></div>
+                            <div><span class="text-slate-400">집계 대상:</span> <b class="text-slate-900">${count}개 가맹점</b></div>
+                            <div><span class="text-slate-400">총 합계 금액:</span> <b class="text-emerald-700 font-bold">${Number(totalAmt).toLocaleString()} 원</b></div>
                         </div>
 
                         <!-- 인라인 미니 데이터 테이블 -->
@@ -752,8 +758,8 @@
                                 </tbody>
                                 <tfoot class="bg-emerald-50 font-bold border-t border-emerald-200 text-emerald-950">
                                     <tr>
-                                        <td colspan="3" class="p-1.5 text-center">합 계 (총 ${p.count}개소)</td>
-                                        <td class="p-1.5 text-right font-mono text-emerald-800">${Number(p.totalAmount).toLocaleString()}원</td>
+                                        <td colspan="3" class="p-1.5 text-center">합 계 (총 ${count}개소)</td>
+                                        <td class="p-1.5 text-right font-mono text-emerald-800">${Number(totalAmt).toLocaleString()}원</td>
                                     </tr>
                                 </tfoot>
                             </table>

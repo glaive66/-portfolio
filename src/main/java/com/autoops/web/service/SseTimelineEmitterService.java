@@ -25,7 +25,8 @@ public class SseTimelineEmitterService {
             String eventType,  // THINKING, TOOL_START, TOOL_END, SUSPENDED, APPROVED, SAGA_CHUNK, COMPLETED, ERROR
             String title,
             String detail,
-            String timestamp
+            String timestamp,
+            Object payload
     ) {}
 
     public SseEmitter connect(String executionId) {
@@ -50,7 +51,7 @@ public class SseTimelineEmitterService {
         });
 
         // 초기 연결 성공 이벤트 전송
-        sendEvent(executionId, "CONNECTED", "AutoOps 오케스트레이터 실시간 채널 연결됨", "대기 중...", executionId);
+        sendEvent(executionId, "CONNECTED", "AutoOps 오케스트레이터 실시간 채널 연결됨", "대기 중...", null);
 
         return emitter;
     }
@@ -66,7 +67,8 @@ public class SseTimelineEmitterService {
                 eventType,
                 title,
                 detail,
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss.SSS"))
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss.SSS")),
+                extra
         );
 
         try {
