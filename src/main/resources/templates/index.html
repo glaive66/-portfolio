@@ -130,36 +130,34 @@
 
         <!-- 하단: 데이터베이스 현황 및 불변 감사 로그 탭 -->
         <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div class="border-b border-slate-200 px-6 pt-4 flex gap-6 text-sm font-semibold overflow-x-auto">
-                <button onclick="switchTab('tasks')" id="tabBtnTasks" class="pb-3 border-b-2 border-indigo-600 text-indigo-600 transition flex items-center gap-1.5 whitespace-nowrap">
-                    <i class="fa-solid fa-list-check text-indigo-600"></i> AI 작업 내역 게시판
-                    <span id="taskHistoryCountBadge" class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-700 font-bold">0</span>
-                </button>
-                <button onclick="switchTab('settlement')" id="tabBtnSettlement" class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
-                    <i class="fa-solid fa-receipt mr-1"></i> 가맹점 정산 오류 목록 (Mock 50건)
-                </button>
-                <button onclick="switchTab('approval')" id="tabBtnApproval" class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
-                    <i class="fa-solid fa-file-signature mr-1"></i> 전자결재 상신 이력 (TB_APPROVAL_DRAFT)
-                </button>
-                <button onclick="switchTab('audit')" id="tabBtnAudit" class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
-                    <i class="fa-solid fa-shield-virus mr-1"></i> AI 불변 감사 로그 (TB_AI_AUDIT_LOG)
-                </button>
-                <button onclick="switchTab('chunks')" id="tabBtnChunks" class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
-                    <i class="fa-solid fa-boxes-packing text-amber-500 mr-1"></i> RabbitMQ 청크 발송 모니터링 (실시간 ACK)
-                </button>
+            <!-- 메인 2대 탭 네비게이션 바 -->
+            <div class="border-b border-slate-200 px-6 pt-3 flex items-center justify-between">
+                <div class="flex gap-6 text-sm font-semibold">
+                    <button onclick="switchMainTab('tasks')" id="mainTabBtnTasks" class="pb-3 border-b-2 border-indigo-600 text-indigo-600 transition flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-solid fa-list-check text-indigo-600"></i>
+                        <span>운영 작업 이력 & 결과</span>
+                        <span id="taskHistoryCountBadge" class="px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-700 font-bold">0</span>
+                    </button>
+                    <button onclick="switchMainTab('system')" id="mainTabBtnSystem" class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>시스템 감사 & 데이터 로그</span>
+                    </button>
+                </div>
+                <div class="pb-2">
+                    <button onclick="refreshTables()" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-semibold text-xs transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate text-[11px]"></i> 새로고침
+                    </button>
+                </div>
             </div>
 
             <div class="p-5 max-h-80 overflow-y-auto">
-                <!-- 탭 0: AI 작업 내역 게시판 (신규) -->
-                <div id="tabContentTasks" class="block space-y-3">
+                <!-- 메인 탭 1: 운영 작업 이력 & 결과 -->
+                <div id="mainTabContentTasks" class="block space-y-3">
                     <div class="flex items-center justify-between text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                         <div class="flex items-center gap-2">
                             <i class="fa-solid fa-circle-info text-indigo-500"></i>
                             <span>자율 AI 오케스트레이터가 수행한 업무 내역 전수 이력입니다. 행을 클릭하면 결재 품의서 및 상세 정보를 바로 확인할 수 있습니다.</span>
                         </div>
-                        <button onclick="refreshTables()" class="px-2.5 py-1 rounded bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold transition flex items-center gap-1">
-                            <i class="fa-solid fa-rotate text-[10px]"></i> 새로고침
-                        </button>
                     </div>
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
@@ -180,88 +178,110 @@
                     </table>
                 </div>
 
-                <!-- 탭 1: 정산 테이블 -->
-                <div id="tabContentSettlement" class="hidden">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
-                            <tr>
-                                <th class="p-2.5">정산식별자</th>
-                                <th class="p-2.5">가맹점명</th>
-                                <th class="p-2.5">정산월</th>
-                                <th class="p-2.5">상태</th>
-                                <th class="p-2.5">오류 사유</th>
-                                <th class="p-2.5 text-right">보류 금액</th>
-                            </tr>
-                        </thead>
-                        <tbody id="settlementTableBody" class="divide-y divide-slate-100">
-                            <tr><td colspan="6" class="p-4 text-center text-slate-400">데이터 로딩 중...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- 탭 2: 결재 테이블 -->
-                <div id="tabContentApproval" class="hidden">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
-                            <tr>
-                                <th class="p-2.5">기안 ID</th>
-                                <th class="p-2.5">제목</th>
-                                <th class="p-2.5">상태</th>
-                                <th class="p-2.5">생성자</th>
-                                <th class="p-2.5">상신 시각</th>
-                            </tr>
-                        </thead>
-                        <tbody id="draftTableBody" class="divide-y divide-slate-100">
-                            <tr><td colspan="5" class="p-4 text-center text-slate-400">데이터 로딩 중...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- 탭 3: 감사 로그 테이블 -->
-                <div id="tabContentAudit" class="hidden">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
-                            <tr>
-                                <th class="p-2.5">로그 ID</th>
-                                <th class="p-2.5">실행 ID</th>
-                                <th class="p-2.5">호출 도구 (Tool)</th>
-                                <th class="p-2.5">성격</th>
-                                <th class="p-2.5">승인 상태</th>
-                                <th class="p-2.5">소요 시간</th>
-                                <th class="p-2.5">생성 시각</th>
-                            </tr>
-                        </thead>
-                        <tbody id="auditTableBody" class="divide-y divide-slate-100">
-                            <tr><td colspan="7" class="p-4 text-center text-slate-400">데이터 로딩 중...</td></tr>
-                        </tbody>
-                </div>
-
-                <!-- 탭 4: RabbitMQ 청크 모니터링 테이블 -->
-                <div id="tabContentChunks" class="hidden">
-                    <div class="mb-3 p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <i class="fa-solid fa-circle-info text-amber-600"></i>
-                            <span><b>대량 발송 비동기 분할 처리 메커니즘:</b> WAS 메모리 고갈 방지를 위해 10건 단위로 분할된 메시지들이 RabbitMQ 브로커를 거쳐 비동기 Worker에 의해 소비(ACK)된 실시간 처리 이력입니다.</span>
-                        </div>
-                        <span id="chunkSummaryBadge" class="font-bold font-mono px-2 py-0.5 rounded bg-amber-200 text-amber-900 text-[11px]">0개 청크 완료</span>
+                <!-- 메인 탭 2: 시스템 감사 & 데이터 로그 (서브 스위처 포함) -->
+                <div id="mainTabContentSystem" class="hidden space-y-4">
+                    <!-- 서브 탭 알약(Pill) 스위처 -->
+                    <div class="flex items-center gap-2 pb-3 border-b border-slate-100">
+                        <span class="text-xs font-bold text-slate-400 mr-1"><i class="fa-solid fa-filter"></i> 로그 구분:</span>
+                        <button onclick="switchSystemSubTab('audit')" id="subTabBtnAudit" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-sm transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-shield-virus"></i> 불변 감사 로그 (Audit Trail)
+                        </button>
+                        <button onclick="switchSystemSubTab('chunks')" id="subTabBtnChunks" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-boxes-packing text-amber-500"></i> RabbitMQ 청크 모니터링
+                        </button>
+                        <button onclick="switchSystemSubTab('settlement')" id="subTabBtnSettlement" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-receipt text-rose-500"></i> 원천 정산 오류 현황
+                        </button>
+                        <button onclick="switchSystemSubTab('approval')" id="subTabBtnApproval" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-signature text-emerald-600"></i> 전자결재 상신 원장
+                        </button>
                     </div>
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
-                            <tr>
-                                <th class="p-2.5">청크 번호</th>
-                                <th class="p-2.5">발송 규모</th>
-                                <th class="p-2.5">대표 수신 가맹점</th>
-                                <th class="p-2.5">브로커 처리 상태</th>
-                                <th class="p-2.5">실행 식별자</th>
-                                <th class="p-2.5 font-mono">처리 시각</th>
-                            </tr>
-                        </thead>
-                        <tbody id="chunksTableBody" class="divide-y divide-slate-100">
-                            <tr><td colspan="6" class="p-4 text-center text-slate-400">발송된 청크가 없습니다.</td></tr>
-                        </tbody>
-                    </table>
+
+                    <!-- 서브 1: AI 불변 감사 로그 테이블 -->
+                    <div id="subTabContentAudit" class="block">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
+                                <tr>
+                                    <th class="p-2.5">로그 ID</th>
+                                    <th class="p-2.5">실행 ID</th>
+                                    <th class="p-2.5">호출 도구 (Tool)</th>
+                                    <th class="p-2.5">성격</th>
+                                    <th class="p-2.5">승인 상태</th>
+                                    <th class="p-2.5">소요 시간</th>
+                                    <th class="p-2.5">생성 시각</th>
+                                </tr>
+                            </thead>
+                            <tbody id="auditTableBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="7" class="p-4 text-center text-slate-400">데이터 로딩 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 서브 2: RabbitMQ 청크 모니터링 테이블 -->
+                    <div id="subTabContentChunks" class="hidden">
+                        <div class="mb-3 p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-circle-info text-amber-600"></i>
+                                <span><b>대량 발송 비동기 분할 처리 메커니즘:</b> WAS 메모리 고갈 방지를 위해 10건 단위로 분할된 메시지들이 RabbitMQ 브로커를 거쳐 비동기 Worker에 의해 소비(ACK)된 실시간 처리 이력입니다.</span>
+                            </div>
+                            <span id="chunkSummaryBadge" class="font-bold font-mono px-2 py-0.5 rounded bg-amber-200 text-amber-900 text-[11px]">0개 청크 완료</span>
+                        </div>
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
+                                <tr>
+                                    <th class="p-2.5">청크 번호</th>
+                                    <th class="p-2.5">발송 규모</th>
+                                    <th class="p-2.5">대표 수신 가맹점</th>
+                                    <th class="p-2.5">브로커 처리 상태</th>
+                                    <th class="p-2.5">실행 식별자</th>
+                                    <th class="p-2.5 font-mono">처리 시각</th>
+                                </tr>
+                            </thead>
+                            <tbody id="chunksTableBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="6" class="p-4 text-center text-slate-400">발송된 청크가 없습니다.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 서브 3: 정산 오류 테이블 -->
+                    <div id="subTabContentSettlement" class="hidden">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
+                                <tr>
+                                    <th class="p-2.5">정산식별자</th>
+                                    <th class="p-2.5">가맹점명</th>
+                                    <th class="p-2.5">정산월</th>
+                                    <th class="p-2.5">상태</th>
+                                    <th class="p-2.5">오류 사유</th>
+                                    <th class="p-2.5 text-right">보류 금액</th>
+                                </tr>
+                            </thead>
+                            <tbody id="settlementTableBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="6" class="p-4 text-center text-slate-400">데이터 로딩 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 서브 4: 전자결재 상신 원장 테이블 -->
+                    <div id="subTabContentApproval" class="hidden">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
+                                <tr>
+                                    <th class="p-2.5">기안 ID</th>
+                                    <th class="p-2.5">제목</th>
+                                    <th class="p-2.5">상태</th>
+                                    <th class="p-2.5">생성자</th>
+                                    <th class="p-2.5">상신 시각</th>
+                                </tr>
+                            </thead>
+                            <tbody id="draftTableBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="5" class="p-4 text-center text-slate-400">데이터 로딩 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
+        </section>
     </main>
 
     <!-- 1. 전자결재 품의서 상세 모달 -->
@@ -907,18 +927,43 @@
             refreshTables();
         }
 
-        function switchTab(tab) {
-            document.getElementById('tabContentTasks').className = tab === 'tasks' ? 'block space-y-3' : 'hidden';
-            document.getElementById('tabContentSettlement').className = tab === 'settlement' ? 'block' : 'hidden';
-            document.getElementById('tabContentApproval').className = tab === 'approval' ? 'block' : 'hidden';
-            document.getElementById('tabContentAudit').className = tab === 'audit' ? 'block' : 'hidden';
-            document.getElementById('tabContentChunks').className = tab === 'chunks' ? 'block' : 'hidden';
+        function switchMainTab(tab) {
+            const isTasks = tab === 'tasks';
+            document.getElementById('mainTabContentTasks').className = isTasks ? 'block space-y-3' : 'hidden';
+            document.getElementById('mainTabContentSystem').className = isTasks ? 'hidden space-y-4' : 'block space-y-4';
 
-            document.getElementById('tabBtnTasks').className = tab === 'tasks' ? 'pb-3 border-b-2 border-indigo-600 text-indigo-600 transition flex items-center gap-1.5 whitespace-nowrap' : 'pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap';
-            document.getElementById('tabBtnSettlement').className = tab === 'settlement' ? 'pb-3 border-b-2 border-indigo-600 text-indigo-600 transition flex items-center gap-1.5 whitespace-nowrap' : 'pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap';
-            document.getElementById('tabBtnApproval').className = tab === 'approval' ? 'pb-3 border-b-2 border-indigo-600 text-indigo-600 transition flex items-center gap-1.5 whitespace-nowrap' : 'pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap';
-            document.getElementById('tabBtnAudit').className = tab === 'audit' ? 'pb-3 border-b-2 border-indigo-600 text-indigo-600 transition flex items-center gap-1.5 whitespace-nowrap' : 'pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap';
-            document.getElementById('tabBtnChunks').className = tab === 'chunks' ? 'pb-3 border-b-2 border-amber-600 text-amber-700 transition flex items-center gap-1.5 whitespace-nowrap' : 'pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap';
+            document.getElementById('mainTabBtnTasks').className = isTasks 
+                ? 'pb-3 border-b-2 border-indigo-600 text-indigo-600 transition flex items-center gap-2 whitespace-nowrap' 
+                : 'pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-2 whitespace-nowrap';
+            document.getElementById('mainTabBtnSystem').className = !isTasks 
+                ? 'pb-3 border-b-2 border-indigo-600 text-indigo-600 transition flex items-center gap-2 whitespace-nowrap' 
+                : 'pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-2 whitespace-nowrap';
+        }
+
+        function switchSystemSubTab(sub) {
+            const subTabs = ['audit', 'chunks', 'settlement', 'approval'];
+            subTabs.forEach(s => {
+                const contentEl = document.getElementById('subTabContent' + s.charAt(0).toUpperCase() + s.slice(1));
+                const btnEl = document.getElementById('subTabBtn' + s.charAt(0).toUpperCase() + s.slice(1));
+                if (contentEl) {
+                    contentEl.className = s === sub ? 'block' : 'hidden';
+                }
+                if (btnEl) {
+                    btnEl.className = s === sub 
+                        ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-sm transition flex items-center gap-1.5'
+                        : 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition flex items-center gap-1.5';
+                }
+            });
+        }
+
+        // 기존 코드 하위 호환성 유지용 함수
+        function switchTab(tab) {
+            if (tab === 'tasks') {
+                switchMainTab('tasks');
+            } else {
+                switchMainTab('system');
+                switchSystemSubTab(tab);
+            }
         }
 
         let cachedTasks = [];

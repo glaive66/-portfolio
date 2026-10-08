@@ -27,13 +27,12 @@ flowchart TD
     Controller --> Agent["Spring AI Agent (Google Gemini 2.0 Flash / Multi-LLM)"]
     
     subgraph MCP Ecosystem
-        Agent -->|"MCP 프로토콜 (도구 호출)"| MCP_Registry["MCP Tool Registry"]
-        MCP_Registry -->|"도구 실행 결과 반환"| Agent
+        Agent <-->|"MCP Protocol (Function Calling)"| MCP_Registry["MCP Tool Registry"]
         MCP_Registry --> T1["Tool: 가맹점 정산 오류 조회 (READ)"]
         MCP_Registry --> T2["Tool: 맞춤 안내문 템플릿 생성 (READ)"]
-        MCP_Registry --> Gate{"Human-in-the-Loop Gateway<br/>위험 작업 승인 대기"}
-        Gate -->|"SUSPEND: 승인 요청 카드"| UI
-        UI -->|"APPROVE: 관리자 승인 확인"| Gate
+        MCP_Registry --> Gate{"Human-in-the-Loop Gateway<br/>(위험 작업 승인 대기)"}
+        Gate -->|SUSPEND: 승인 요청 카드| UI
+        UI -->|APPROVE: 관리자 승인 확인| Gate
         Gate --> Saga["Saga Orchestrator"]
         Saga --> T3["Tool: 전자결재 기안 자동 상신"]
         Saga --> T4["Tool: RabbitMQ 10건 단위 Chunk 분할 발행"]
@@ -70,9 +69,12 @@ flowchart TD
 * **클립보드 표 서식 복사**: 엑셀/구글 스프레드시트에 셀 단위로 바로 붙여넣는 TSV 클립보드 복사.
 * **공식 인쇄/PDF 결재 보고서 뷰**: 결재란(담당/팀장/임원)이 구비된 A4 공식 보고서 모달 및 브라우저 인쇄 지원.
 
-### ⑤ 불변 감사 추적성 및 작업 이력 영속화
-* 실행 ID, 프롬프트, 도구명, 입출력 인자(JSONB), 실행 시간(ms)을 `TB_AI_AUDIT_LOG`에 전수 기록.
-* 과거 및 현재 실행된 모든 AI 오케스트레이션 이력을 `TB_OPS_TASK_HISTORY`에 영구 보존하여 게시판 형태로 조회.
+### ⑤ 불변 감사 추적성 및 2-Tier 엔터프라이즈 UI 레이아웃
+* **가로 스크롤 없는 2대 메인 탭 압축**: 산만하게 나열되던 5개 탭을 업무 목적에 맞춰 2대 메인 탭으로 최적화:
+  * **메인 탭 1 (`📋 운영 작업 이력 & 결과`)**: AI 오케스트레이션 전수 이력 및 결재 품의서/실행 상태 원클릭 상세 조회 (`TB_OPS_TASK_HISTORY`).
+  * **메인 탭 2 (`🛡️ 시스템 감사 & 데이터 로그`)**: 4대 서브 알약(Pill) 스위처(`불변 감사 로그 Audit Trail`, `RabbitMQ 청크 모니터링`, `원천 정산 오류 현황`, `전자결재 상신 원장`)를 통한 엔터프라이즈 시스템 관제.
+* **프로덕션 표준 네이밍**: `Mock 50건`, `TB_...` 등 개발자용 기술 꼬리표를 제거하고 엔터프라이즈 실무 표준 명칭으로 정제.
+* **불변 감사 추적성 (`TB_AI_AUDIT_LOG`)**: AI가 실행한 도구명, 입출력 JSONB 인자, 소요 시간(ms)을 영구 보존하여 금융권 수준의 컴플라이언스 준수.
 
 ---
 
@@ -181,7 +183,7 @@ autoops-mcp/
 │       ├── controller/                 # Web & REST API 엔드포인트
 │       └── service/                    # 대화형 코디네이터 & 동적 의도 분류기
 ├── src/main/resources/
-│   ├── templates/index.html            # 운영 콘솔 (타임라인 + 인라인 표 + 엑셀 다운로드)
+│   ├── templates/index.html            # 운영 콘솔 (타임라인 + 인라인 표 + 엑셀 익스포트 + 2대 메인 탭)
 │   └── application.yml                 # 포트 8090, RabbitMQ 및 DB 설정
 ├── USER_MANUAL.md                      # 전체 사용자 및 운영자 매뉴얼
 └── README.md                           # 프로젝트 아키텍처 및 기술 명세서
